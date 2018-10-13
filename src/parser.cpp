@@ -6,34 +6,36 @@
 #include <unordered_map>
 #include <stdexcept>
 #include "audionode.h"
-#include "audioframebuffer.h"
+#include "nodelink.h"
 
-class NodeLink {
+class PreNodeLink {
 public:
-	AudioFrameBuffer* buf;
-	std::string src;
-	int output;
+	AudioNode* dest;
+	int dest_id;
 
-	NodeLink() {}
-	NodeLink(AudioFrameBuffer* b, std::string s, int o) : buf(b), src(s), output(o) {}
-	NodeLink(AudioFrameBuffer* b, std::string so) : buf(b) {
+	std::string src;
+	int src_id;
+
+	PreNodeLink() {}
+	PreNodeLink(AudioNode* d, int did, std::string s, int sid) : dest(d), dest_id(did), src(s), src_id(sid) {}
+	PreNodeLink(AudioNode* d, int did, std::string so) : dest(d), dest_id(did) {
 		std::size_t slash = so.find_first_of('/');
 
 		if (slash == std::string::npos) throw std::invalid_argument("No /");
 
 		src = so.substr(0, slash);
-		output = stoi(so.substr(slash + 1));
+		src_id = stoi(so.substr(slash + 1));
 	}
 };
 
-int add_node(std::string &current_type, std::unordered_map<std::string,std::string> &current_data, std::vector<NodeLink> &links, std::vector<AudioNode*> &nodes) {
+int add_node(std::string &current_type, std::unordered_map<std::string,std::string> &current_data, std::vector<PreNodeLink> &prelinks, std::vector<AudioNode*> &nodes) {
 	AudioNode* new_node;
 	
 	if (current_type == "[2 Monos to Stereo]") {
 		AudioNodeStereoMerge* node = new AudioNodeStereoMerge();
 
 		try {
-			links.emplace_back(node->get_input_left(), current_data.at("left_source"));
+			prelinks.emplace_back(node, 0, current_data.at("left_source"));
 		} catch (const std::out_of_range &err) {
 			std::cerr << "[2 Monos to Stereo] has no property \"left_source\", and so is not driven" << std::endl;
 		} catch (const std::invalid_argument &err) {
@@ -42,7 +44,7 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 		}
 		
 		try {
-			links.emplace_back(node->get_input_right(), current_data.at("right_source"));
+			prelinks.emplace_back(node, 1, current_data.at("right_source"));
 		} catch (const std::out_of_range &err) {
 			std::cerr << "[2 Monos to Stereo] has no property \"right_source\", and so is not driven" << std::endl;
 		} catch (const std::invalid_argument &err) {
@@ -96,7 +98,7 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 		AudioNodeALSAOutput* node = new AudioNodeALSAOutput(did);
 
 		try {
-			links.emplace_back(node->get_input(), current_data.at("source"));
+			prelinks.emplace_back(node, 0, current_data.at("source"));
 		} catch (const std::out_of_range &err) {
 			std::cerr << "[ALSA Output Device] has no property \"source\", and so is not driven" << std::endl;
 		} catch (const std::invalid_argument &err) {
@@ -121,9 +123,9 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 	return 0;
 }
 
-int parse_code(std::string code, std::vector<AudioNode*> &nodes) {
+int parse_code(std::string code, std::vector<AudioNode*> &nodes, std::vector<NodeLink> &links) {
 	int err;
-	std::vector<NodeLink> links;
+	std::vector<PreNodeLink> prelinks;
 
 	std::string current_type;
 	std::unordered_map<std::string,std::string> current_data;
@@ -142,7 +144,7 @@ int parse_code(std::string code, std::vector<AudioNode*> &nodes) {
 
 			if (line[0] == '[') {
 				if (!current_type.empty()) {
-					if ((err = add_node(current_type, current_data, links, nodes))) return err;
+					if ((err = add_node(current_type, current_data, prelinks, nodes))) return err;
 				}
 
 				current_type = line;
@@ -159,23 +161,25 @@ int parse_code(std::string code, std::vector<AudioNode*> &nodes) {
 		strind = next == std::string::npos ? next : next + 1;
 	}
 	
-	if (!current_type.empty() && (err = add_node(current_type, current_data, links, nodes))) return err;
+	if (!current_type.empty() && (err = add_node(current_type, current_data, prelinks, nodes))) return err;
 
-	for (auto const &link: links) {
+	for (auto const &prelink: prelinks) {
 		bool found = false;
 		for (auto const &node: nodes) {
-			if (node->name == link.src) {
+			if (node->name == prelink.src) {
 				found = true;
-				if ((err = node->add_output(link.buf, link.output))) {
-					std::cerr << "Invalid output id" << std::endl;
-					return -1;
-				}
+				NodeLink l;
+				l.src = node;
+				l.src_id = prelink.src_id;
+				l.dest = prelink.dest;
+				l.dest_id = prelink.dest_id;
+				links.push_back(l);
 				break;
 			}
 		}
 
 		if (!found) {
-			std::cerr << "Name " << link.src << " is not defined" << std::endl;
+			std::cerr << "Name " << prelink.src << " is not defined" << std::endl;
 			return -1;
 		}
 	}

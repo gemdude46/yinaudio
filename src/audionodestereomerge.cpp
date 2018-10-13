@@ -1,41 +1,40 @@
 #include "audionode.h"
 
 #include "audioframe.h"
-#include "audioframebuffer.h"
 
 void AudioNodeStereoMerge::tick() {
-	while (left.poll() && right.poll()) {
-		AudioFrame lf, rf, o1, o2;
-		left.read_frame(&lf);
-		right.read_frame(&rf);
+	output.channels = 2;
 
-		if (lf.channels != 1 || rf.channels != 1) {
-			std::cerr << "Mono to Stereo input must be mono" << std::endl;
-			continue;
-		}
+	if (left.channels != 1 || right.channels != 1) {
+		std::cerr << "Mono to Stereo input must be mono" << std::endl;
+		output.zero();
+		return;
+	}
 
-		o1.channels = o2.channels = 2;
-
-		for (int i = 0; i < AUDIOFRAME_SIZE / 2; i++) {
-			o1.data[2 * i] = lf.data[i];
-			o1.data[2 * i + 1] = rf.data[i];
-			o2.data[2 * i] = lf.data[i + AUDIOFRAME_SIZE / 2];
-			o2.data[2 * i + 1] = rf.data[i + AUDIOFRAME_SIZE / 2];
-		}
-	
-		for (auto const &output: outputs) {
-			output->write_frame(o1);
-			output->write_frame(o2);
-		}
+	for (int i = 0; i < AUDIOFRAME_SIZE; i++) {
+		output.data[2 * i] = left.data[i];
+		output.data[2 * i + 1] = right.data[i];
 	}
 }
 
-int AudioNodeStereoMerge::add_output(AudioFrameBuffer* buf, int output_id) {
-	if (output_id != 0) {
+int AudioNodeStereoMerge::set_input(int id, AudioFrame* buf) {
+	if (id == 0) {
+		left = *buf;
+	} else if (id == 1) {
+		right = *buf;
+	} else {
+		return E_INVALID_AUDIONODE_INPUT;
+	}
+
+	return 0;
+}
+
+int AudioNodeStereoMerge::get_output(int id, AudioFrame** buf) {
+	if (id != 0) {
 		return E_INVALID_AUDIONODE_OUTPUT;
 	}
 
-	outputs.push_back(buf);
+	*buf = &output;
 
 	return 0;
 }

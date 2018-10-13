@@ -3,35 +3,19 @@
 
 #include <stdint.h>
 
-#define AUDIOFRAME_SIZE 1024
+#define AUDIOFRAME_SIZE 256
+#define MAX_CHANNELS 6
 
 class AudioFrame {
 public:
 	int channels;
-	int32_t data[AUDIOFRAME_SIZE];
+	int32_t data[MAX_CHANNELS * AUDIOFRAME_SIZE];
 
-	AudioFrame() : channels(0) {}
+	AudioFrame() : channels(1) {}
 	AudioFrame(int c) : channels(c) {}
+
+	void zero();
+	void increase_channels(int new_channel_count);
 };
-
-/*
-inline int get_bytewidth(int format) {
-	if (format == F_S8  || format == F_U8)  return 1;
-	if (format == F_S16 || format == F_U16) return 2;
-	if (format == F_S32 || format == F_U32) return 4;
-
-	std::cerr << "Not a valid frame format: " << format << std::endl;
-	return 0;
-}
-
-inline int get_bitwidth(int format) {
-	if (format == F_S8  || format == F_U8)  return 8;
-	if (format == F_S16 || format == F_U16) return 16;
-	if (format == F_S32 || format == F_U32) return 32;
-
-	std::cerr << "Not a valid frame format: " << format << std::endl;
-	return 0;
-}
-*/
 
 #endif

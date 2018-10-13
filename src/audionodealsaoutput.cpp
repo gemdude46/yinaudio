@@ -21,85 +21,46 @@
 #define ALSA_FMT_FALLBACK SND_PCM_FORMAT_S16_LE
 #endif
 
-/*
-inline snd_pcm_format_t get_alsa_format(int format) {
-	if (format == F_S8)  return SND_PCM_FORMAT_S8;
-	if (format == F_U8)  return SND_PCM_FORMAT_U8;
-	if (format == F_S16) return ENDIANIFY(SND_PCM_FORMAT_S16);
-	if (format == F_U16) return ENDIANIFY(SND_PCM_FORMAT_U16);
-	if (format == F_S32) return ENDIANIFY(SND_PCM_FORMAT_S32);
-	if (format == F_U32) return ENDIANIFY(SND_PCM_FORMAT_U32);
-	
-	std::cerr << "Not a valid frame format: " << format << std::endl;
-	return SND_PCM_FORMAT_UNKNOWN;
-}
-*/
-
 void AudioNodeALSAOutput::tick() {
 	if (!enabled) return;
 
 	int err;
-	AudioFrame frame;
 
-	while (0 == (err = fbuf.read_frame(&frame))) {
+	if (!handle) {
+		if ((err = open_device(GLOBAL_RATE, input.channels))) {
+			std::cerr << "Unable to open audio device " << device << ": Error " << err << ": " << snd_strerror(err) << std::endl;
+			enabled = false;
+			return;
+		}
+
 		if (!handle) {
-			if ((err = open_device(GLOBAL_RATE, frame.channels))) {
-				std::cerr << "Unable to open audio device " << device << ": Error " << err << ": " << snd_strerror(err) << std::endl;
-				enabled = false;
-				return;
-			}
-
-			if (!handle) {
-				std::cerr << "Unable to open audio device " << device << ": Unknown error. Retrying." << std::endl;
-				return;
-			}
+			std::cerr << "Unable to open audio device " << device << ": Unknown error. Retrying." << std::endl;
+			return;
 		}
+	}
 
-		if (output_bitwidth != 32 || output_channels > frame.channels) {
-			if (output_channels > frame.channels) {
-				for (int i = 0; i < AUDIOFRAME_SIZE; i++) {
-					for (int j = 0; j < output_channels / frame.channels; j++) {
-						rescale[i * output_channels / frame.channels + j] = frame.data[i];
-					}
-				}
+	if (output_channels > input.channels) {
+		input.increase_channels(output_channels);
+	}
 
-				if (output_bitwidth == 16) {
-					for (int i = 0; i < 6 * AUDIOFRAME_SIZE; i++) {
-						((int16_t*) rescale)[i] = static_cast<int16_t>(rescale[i] >> 16);
-					}
-				}
-
-				else if (output_bitwidth == 8) {
-					for (int i = 0; i < 6 * AUDIOFRAME_SIZE; i++) {
-						((int8_t*) rescale)[i] = static_cast<int8_t>(rescale[i] >> 24);
-					}
-				}
-
-				err = -snd_pcm_writei(handle, rescale, AUDIOFRAME_SIZE / frame.channels);
-			} else {
-				if (output_bitwidth == 16) {
-					for (int i = 0; i < AUDIOFRAME_SIZE; i++) {
-						((int16_t*) frame.data)[i] = static_cast<int16_t>(frame.data[i] >> 16);
-					}
-				}
-
-				else if (output_bitwidth == 8) {
-					for (int i = 0; i < AUDIOFRAME_SIZE; i++) {
-						((int8_t*) frame.data)[i] = static_cast<int8_t>(frame.data[i] >> 24);
-					}
-				}
-				
-				err = -snd_pcm_writei(handle, frame.data, AUDIOFRAME_SIZE / frame.channels);
-			}
-		} else {
-			err = -snd_pcm_writei(handle, frame.data, AUDIOFRAME_SIZE / frame.channels);
+	if (output_bitwidth == 16) {
+		for (int i = 0; i < AUDIOFRAME_SIZE * input.channels; i++) {
+			((int16_t*) input.data)[i] = static_cast<int16_t>(input.data[i] >> 16);
 		}
+	}
+
+	else if (output_bitwidth == 8) {
+		for (int i = 0; i < AUDIOFRAME_SIZE * input.channels; i++) {
+			((int8_t*) input.data)[i] = static_cast<int8_t>(input.data[i] >> 24);
+		}
+	}
 		
-		if (err == EPIPE) {
-			std::cerr << "Underrun occurred on device " << device << std::endl;
-		} else if (err > 0) {
-			std::cerr << "Error writing frames to device " << device << ": Error " << err << ": " << snd_strerror(-err) << std::endl;
-		}
+	err = -snd_pcm_writei(handle, input.data, AUDIOFRAME_SIZE);
+	
+	if (err == EPIPE) {
+		std::cerr << "Underrun occurred on device " << device << std::endl;
+	} else if (err > 0) {
+		std::cerr << "Error writing frames to device " << device << ": Error " << err << ": " << snd_strerror(-err) << std::endl;
 	}
 }
 
@@ -150,6 +111,16 @@ int AudioNodeALSAOutput::open_device(int rate, int channels) {
 	return 0;
 }
 
-int AudioNodeALSAOutput::add_output(AudioFrameBuffer* /*buf*/, int /*output_id*/) {
+int AudioNodeALSAOutput::set_input(int id, AudioFrame* buf) {
+	if (id != 0) {
+		return E_INVALID_AUDIONODE_INPUT;
+	}
+
+	input = *buf;
+
+	return 0;
+}
+
+int AudioNodeALSAOutput::get_output(int, AudioFrame**) {
 	return E_INVALID_AUDIONODE_OUTPUT;
 }

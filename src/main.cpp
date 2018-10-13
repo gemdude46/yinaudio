@@ -6,6 +6,8 @@
 #include <sstream>
 #include <iterator>
 #include "audionode.h"
+#include "audioframe.h"
+#include "nodelink.h"
 #include "parser.h"
 
 int main(int argc, char** argv) {
@@ -78,6 +80,7 @@ int main(int argc, char** argv) {
 	}
 
 	std::vector<AudioNode*> nodes;
+	std::vector<NodeLink> links;
 
 	for (auto const &file: files) {
 		std::string code;
@@ -98,12 +101,24 @@ int main(int argc, char** argv) {
 		}
 
 		int err;
-		if ((err = parse_code(code, nodes))) {
+		if ((err = parse_code(code, nodes, links))) {
 			return err;
 		}
 	}
 
 	while (true) {
+		for (auto const &link: links) {
+			AudioFrame* buf;
+			if (link.src->get_output(link.src_id, &buf)) {
+				std::cerr << "Unable to get output " << link.src_id << " of " << (link.src->name.empty() ? "UNNAMED" : link.src->name.c_str()) << std::endl;
+				return -1;
+			}
+			if (link.dest->set_input(link.dest_id, buf)) {
+				std::cerr << "Unable to set input " << link.dest_id << " of " << (link.dest->name.empty() ? "UNNAMED" : link.dest->name.c_str()) << std::endl;
+				return -1;
+			}
+		}
+
 		for (auto const &node: nodes) {
 			node->tick();
 		}
