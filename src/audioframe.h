@@ -11,7 +11,7 @@ public:
 	int channels;
 	int32_t data[MAX_CHANNELS * AUDIOFRAME_SIZE];
 
-	AudioFrame() : channels(1) {}
+	AudioFrame() : channels(0) {}
 	AudioFrame(int c) : channels(c) {}
 
 	void zero();

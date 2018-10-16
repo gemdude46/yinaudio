@@ -10,8 +10,10 @@
 #include <alsa/asoundlib.h>
 #include "audioframe.h"
 
-#define E_INVALID_AUDIONODE_INPUT  1
-#define E_INVALID_AUDIONODE_OUTPUT 2
+#define E_INVALID_AUDIONODE_INPUT           1
+#define E_INVALID_AUDIONODE_OUTPUT          2
+#define E_INVALID_AUDIONODE_ATTRIBUTE_KEY   3
+#define E_INVALID_AUDIONODE_ATTRIBUTE_VALUE 4
 
 class AudioNode {
 public:
@@ -19,10 +21,11 @@ public:
 
 	virtual void tick() = 0;
 
-	virtual int set_input(int id, AudioFrame* buf) = 0;
-	virtual int get_output(int id, AudioFrame** buf) = 0;
-};
+	int set_input(int id, AudioFrame* buf);
+	int get_output(int id, AudioFrame** buf);
 
+	int update_attribute(std::string key, std::string value);
+};
 
 class AudioNodeStereoMerge : public AudioNode {
 private:
@@ -52,13 +55,42 @@ public:
 
 	void tick();
 
-	int set_input(int id, AudioFrame* buf);
+	int get_output(int id, AudioFrame** buf);
+	int update_attribute(std::string key, std::string value);
+};
+
+class AudioNodeALSAInput : public AudioNode {
+private:
+	bool enabled;
+
+	AudioFrame output;
+
+	std::string device;
+
+	snd_pcm_t* handle;
+	snd_pcm_hw_params_t* params;
+
+	int input_channels;
+	int input_bitwidth;
+
+	int open_device(int rate);
+
+public:
+	AudioNodeALSAInput(std::string d) : device(d) {
+		enabled = true;
+		handle = NULL;
+	}
+
+	void tick();
+
 	int get_output(int id, AudioFrame** buf);
 };
 
 class AudioNodeALSAOutput : public AudioNode {
 private:
 	bool enabled;
+
+	int underruns;
 
 	AudioFrame input;
 
@@ -81,7 +113,6 @@ public:
 	void tick();
 
 	int set_input(int id, AudioFrame* buf);
-	int get_output(int id, AudioFrame** buf);
 };
 
 #endif

@@ -22,7 +22,7 @@
 #endif
 
 void AudioNodeALSAOutput::tick() {
-	if (!enabled) return;
+	if (!enabled || input.channels == 0) return;
 
 	int err;
 
@@ -59,8 +59,16 @@ void AudioNodeALSAOutput::tick() {
 	
 	if (err == EPIPE) {
 		std::cerr << "Underrun occurred on device " << device << std::endl;
-	} else if (err > 0) {
-		std::cerr << "Error writing frames to device " << device << ": Error " << err << ": " << snd_strerror(-err) << std::endl;
+		if (++underruns > 256) {
+			std::cerr << "Too many underruns on device " << device << ". Restarting." << std::endl;
+			snd_pcm_close(handle);
+			handle = NULL;
+		}
+	} else {
+		underruns = 0;
+		if (err > 0) {
+			std::cerr << "Error writing frames to device " << device << ": Error " << err << ": " << snd_strerror(-err) << std::endl;
+		}
 	}
 }
 
@@ -75,9 +83,9 @@ int AudioNodeALSAOutput::open_device(int rate, int channels) {
 	snd_pcm_hw_params_alloca(&params);
 	if ((err = snd_pcm_hw_params_any(handle, params)) < 0) return err;
 	if ((err = snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) return err;
-	if ((err = snd_pcm_hw_params_set_format(handle, params, ALSA_FMT)) < 0) {
+	if (snd_pcm_hw_params_set_format(handle, params, ALSA_FMT) < 0) {
 		output_bitwidth = 16;
-		if ((err = snd_pcm_hw_params_set_format(handle, params, ALSA_FMT_FALLBACK)) < 0) {
+		if (snd_pcm_hw_params_set_format(handle, params, ALSA_FMT_FALLBACK) < 0) {
 			output_bitwidth = 8;
 			if ((err = snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_S8)) < 0) return err;
 		}
@@ -106,7 +114,15 @@ int AudioNodeALSAOutput::open_device(int rate, int channels) {
 	snd_pcm_uframes_t ps = AUDIOFRAME_SIZE / channels;
 	snd_pcm_hw_params_set_period_size_near(handle, params, &ps, &subunit_direction);
 
+	snd_pcm_hw_params_set_buffer_size(handle, params, AUDIOFRAME_SIZE * 2);
+
 	if ((err = snd_pcm_hw_params(handle, params)) < 0) return err;
+
+	AudioFrame z(output_channels);
+	z.zero();
+
+	snd_pcm_writei(handle, z.data, AUDIOFRAME_SIZE);
+	snd_pcm_writei(handle, z.data, AUDIOFRAME_SIZE);
 
 	return 0;
 }
@@ -119,8 +135,4 @@ int AudioNodeALSAOutput::set_input(int id, AudioFrame* buf) {
 	input = *buf;
 
 	return 0;
-}
-
-int AudioNodeALSAOutput::get_output(int, AudioFrame**) {
-	return E_INVALID_AUDIONODE_OUTPUT;
 }

@@ -3,11 +3,17 @@
 #include "audioframe.h"
 
 void AudioNodeStereoMerge::tick() {
+	
+	if (left.channels == 0 || right.channels == 0) {
+		output.channels = 0;
+		return;
+	}
+	
 	output.channels = 2;
 
 	if (left.channels != 1 || right.channels != 1) {
 		std::cerr << "Mono to Stereo input must be mono" << std::endl;
-		output.zero();
+		output.channels = 0;
 		return;
 	}
 

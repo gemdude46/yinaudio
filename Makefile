@@ -1,7 +1,7 @@
 CXX ?= g++
 TARGET := ./build/yinaudio.out
 CXXFLAGS := -O2 -Wall -Wextra -lasound
-OBJECTS := src/main.o src/parser.o src/audioframe.o src/audionodestereomerge.o src/audionodesine.o src/audionodealsaoutput.o
+OBJECTS := src/main.o src/parser.o src/socketcontroller.o src/audioframe.o src/audionode.o src/audionodestereomerge.o src/audionodesine.o src/audionodealsainput.o src/audionodealsaoutput.o
 
 all: $(OBJECTS)
 	$(CXX) -o $(TARGET) $(OBJECTS) $(CXXFLAGS)

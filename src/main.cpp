@@ -5,10 +5,14 @@
 #include <streambuf>
 #include <sstream>
 #include <iterator>
+#include <chrono>
+#include <thread>
 #include "audionode.h"
 #include "audioframe.h"
 #include "nodelink.h"
 #include "parser.h"
+#include "socketcontroller.h"
+#include "config.h"
 
 int main(int argc, char** argv) {
 
@@ -75,8 +79,7 @@ int main(int argc, char** argv) {
 	}
 
 	if (files.empty()) {
-		std::cerr << "Error: no input files" << std::endl;
-		return -1;
+		std::cerr << "Warning: no input files" << std::endl;
 	}
 
 	std::vector<AudioNode*> nodes;
@@ -106,7 +109,23 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	SocketController sctrl("./yinaudio-sock", &nodes, &links);
+
+	int err;
+	if ((err = sctrl.open())) {
+		std::cerr << "Unable to open socket at " << sctrl.path << ": Errno " << err << std::endl;
+		return -1;
+	}
+
+	std::chrono::time_point<std::chrono::system_clock> tp;
+
+	int loopc = 0;
+
 	while (true) {
+		if (loopc++ % 256 == 0) {
+			tp = std::chrono::system_clock::now();
+		}
+
 		for (auto const &link: links) {
 			AudioFrame* buf;
 			if (link.src->get_output(link.src_id, &buf)) {
@@ -122,6 +141,11 @@ int main(int argc, char** argv) {
 		for (auto const &node: nodes) {
 			node->tick();
 		}
+
+		sctrl.tick();
+
+		tp += std::chrono::milliseconds(1000 * AUDIOFRAME_SIZE / GLOBAL_RATE);
+		std::this_thread::sleep_until(tp);
 	}
 
 	return 0;

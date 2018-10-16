@@ -8,18 +8,35 @@
 #include "audionode.h"
 #include "nodelink.h"
 
+std::string trim(std::string x, std::string ws = " \t\r\n\v") {
+	std::size_t fc = x.find_first_not_of(ws);
+
+	if (fc == std::string::npos) return "";
+
+	std::size_t len = x.find_last_not_of(ws) - fc + 1;
+
+	return x.substr(fc, len);
+}
+
 class PreNodeLink {
 public:
-	AudioNode* dest;
+	std::string dest;
 	int dest_id;
 
 	std::string src;
 	int src_id;
 
 	PreNodeLink() {}
-	PreNodeLink(AudioNode* d, int did, std::string s, int sid) : dest(d), dest_id(did), src(s), src_id(sid) {}
-	PreNodeLink(AudioNode* d, int did, std::string so) : dest(d), dest_id(did) {
-		std::size_t slash = so.find_first_of('/');
+	PreNodeLink(std::string d, int did, std::string s, int sid) : dest(d), dest_id(did), src(s), src_id(sid) {}
+	PreNodeLink(std::string so, std::string di) {
+		std::size_t slash = di.find_first_of('/');
+
+		if (slash == std::string::npos) throw std::invalid_argument("No /");
+
+		dest = di.substr(0, slash);
+		dest_id = stoi(di.substr(slash + 1));
+
+		slash = so.find_first_of('/');
 
 		if (slash == std::string::npos) throw std::invalid_argument("No /");
 
@@ -28,31 +45,11 @@ public:
 	}
 };
 
-int add_node(std::string &current_type, std::unordered_map<std::string,std::string> &current_data, std::vector<PreNodeLink> &prelinks, std::vector<AudioNode*> &nodes) {
+int add_node(std::string &current_type, std::unordered_map<std::string,std::string> &current_data, std::vector<AudioNode*> &nodes) {
 	AudioNode* new_node;
 	
 	if (current_type == "[2 Monos to Stereo]") {
-		AudioNodeStereoMerge* node = new AudioNodeStereoMerge();
-
-		try {
-			prelinks.emplace_back(node, 0, current_data.at("left_source"));
-		} catch (const std::out_of_range &err) {
-			std::cerr << "[2 Monos to Stereo] has no property \"left_source\", and so is not driven" << std::endl;
-		} catch (const std::invalid_argument &err) {
-			std::cerr << '"' << current_data["left_source"] << "\" is not a valid source format" << std::endl;
-			return -1;
-		}
-		
-		try {
-			prelinks.emplace_back(node, 1, current_data.at("right_source"));
-		} catch (const std::out_of_range &err) {
-			std::cerr << "[2 Monos to Stereo] has no property \"right_source\", and so is not driven" << std::endl;
-		} catch (const std::invalid_argument &err) {
-			std::cerr << '"' << current_data["right_source"] << "\" is not a valid source format" << std::endl;
-			return -1;
-		}
-
-		new_node = node;
+		new_node = new AudioNodeStereoMerge();
 	}
 	
 	else if (current_type == "[Sine Wave]") {
@@ -85,6 +82,19 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 		new_node = new AudioNodeSine(f, a);
 	}
 	
+	else if (current_type == "[ALSA Input Device]") {
+		std::string did;
+		
+		try {
+			did = current_data.at("device");
+		} catch (const std::out_of_range &err) {
+			std::cerr << "[ALSA Input Device] node missing required property \"device\"" << std::endl;
+			return -1;
+		}
+
+		new_node = new AudioNodeALSAInput(did);
+	}
+
 	else if (current_type == "[ALSA Output Device]") {
 		std::string did;
 		
@@ -94,19 +104,8 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 			std::cerr << "[ALSA Output Device] node missing required property \"device\"" << std::endl;
 			return -1;
 		}
-
-		AudioNodeALSAOutput* node = new AudioNodeALSAOutput(did);
-
-		try {
-			prelinks.emplace_back(node, 0, current_data.at("source"));
-		} catch (const std::out_of_range &err) {
-			std::cerr << "[ALSA Output Device] has no property \"source\", and so is not driven" << std::endl;
-		} catch (const std::invalid_argument &err) {
-			std::cerr << '"' << current_data["source"] << "\" is not a valid source format" << std::endl;
-			return -1;
-		}
-
-		new_node = node;
+		
+		new_node = new AudioNodeALSAOutput(did);
 	}
 	
 	else {
@@ -133,24 +132,24 @@ int parse_code(std::string code, std::vector<AudioNode*> &nodes, std::vector<Nod
 	std::size_t strind = 0;
 	while (strind != std::string::npos) {
 		std::size_t next = code.find_first_of('\n', strind);
-		std::string line = code.substr(strind, next == std::string::npos ? next : next - strind);
+		std::string line = trim(code.substr(strind, next == std::string::npos ? next : next - strind));
 
-		std::size_t last_char = line.find_last_not_of(" \t\r\n\v");
-
-		if (last_char != std::string::npos) {
-			line = line.substr(0, last_char + 1);
-
+		if (!line.empty()) {
 			std::size_t equals;
 
 			if (line[0] == '[') {
 				if (!current_type.empty()) {
-					if ((err = add_node(current_type, current_data, prelinks, nodes))) return err;
+					if ((err = add_node(current_type, current_data, nodes))) return err;
 				}
 
 				current_type = line;
 				current_data = std::unordered_map<std::string,std::string>();
 			} else if ((equals = line.find_first_of('=')) != std::string::npos) {
-				current_data[line.substr(0, equals)] = line.substr(equals + 1);
+				if (line[equals + 1] == '>') {
+					prelinks.emplace_back(trim(line.substr(0, equals)), trim(line.substr(equals + 2)));
+				} else {
+					current_data[trim(line.substr(0, equals))] = trim(line.substr(equals + 1));
+				}
 			} else {
 				std::cerr << '"' << line << "\" is not a valid section header or property assignment";
 				return -1;
@@ -161,27 +160,40 @@ int parse_code(std::string code, std::vector<AudioNode*> &nodes, std::vector<Nod
 		strind = next == std::string::npos ? next : next + 1;
 	}
 	
-	if (!current_type.empty() && (err = add_node(current_type, current_data, prelinks, nodes))) return err;
+	if (!current_type.empty() && (err = add_node(current_type, current_data, nodes))) return err;
 
+	
 	for (auto const &prelink: prelinks) {
-		bool found = false;
+		AudioNode* src  = NULL;
+		AudioNode* dest = NULL;
+
 		for (auto const &node: nodes) {
-			if (node->name == prelink.src) {
-				found = true;
-				NodeLink l;
-				l.src = node;
-				l.src_id = prelink.src_id;
-				l.dest = prelink.dest;
-				l.dest_id = prelink.dest_id;
-				links.push_back(l);
+			if (node->name == prelink.src)
+				src = node;
+
+			if (node->name == prelink.dest)
+				dest = node;
+
+			if (src && dest)
 				break;
-			}
 		}
 
-		if (!found) {
+		if (!src) {
 			std::cerr << "Name " << prelink.src << " is not defined" << std::endl;
 			return -1;
 		}
+
+		if (!dest) {
+			std::cerr << "Name " << prelink.dest << " is not defined" << std::endl;
+			return -1;
+		}
+
+		NodeLink link;
+		link.src = src;
+		link.src_id = prelink.src_id;
+		link.dest = dest;
+		link.dest_id = prelink.dest_id;
+		links.push_back(link);
 	}
 
 	return 0;

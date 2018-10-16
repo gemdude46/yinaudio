@@ -1,6 +1,7 @@
 #include "audionode.h"
 
 #include <vector>
+#include <string>
 #include <stdint.h>
 #include <math.h>
 #include "config.h"
@@ -18,10 +19,6 @@ void AudioNodeSine::tick() {
 	}
 }
 
-int AudioNodeSine::set_input(int, AudioFrame*) {
-	return E_INVALID_AUDIONODE_INPUT;
-}
-
 int AudioNodeSine::get_output(int id, AudioFrame** buf) {
 	if (id != 0) {
 		return E_INVALID_AUDIONODE_OUTPUT;
@@ -30,4 +27,27 @@ int AudioNodeSine::get_output(int id, AudioFrame** buf) {
 	*buf = &output;
 
 	return 0;
+}
+
+int AudioNodeSine::update_attribute(std::string key, std::string value) {
+	if (key == "frequency") {
+		try {
+			freq = stod(value);
+			return 0;
+		} catch (const std::invalid_argument &err) {
+			return E_INVALID_AUDIONODE_ATTRIBUTE_VALUE;
+		}
+	} else if (key == "amplitude") {
+		try {
+			double na = stod(value);
+			if (na >= 0 && na <= 1) {
+				amp = na;
+				return 0;
+			} else {
+				return E_INVALID_AUDIONODE_ATTRIBUTE_VALUE;
+			}
+		}
+	} else {
+		return E_INVALID_AUDIONODE_ATTRIBUTE_KEY;
+	}
 }
