@@ -23,10 +23,10 @@ public:
 
 	virtual void serialize(std::ostream &dest) = 0;
 
-	int set_input(int id, AudioFrame* buf);
-	int get_output(int id, AudioFrame** buf);
+	virtual int set_input(int id, AudioFrame* buf);
+	virtual int get_output(int id, AudioFrame** buf);
 
-	int update_attribute(std::string key, std::string value);
+	virtual int update_attribute(std::string key, std::string value);
 };
 
 class AudioNodeStereoMerge : public AudioNode {
