@@ -9,9 +9,11 @@
 #include <stdlib.h>
 #include <vector>
 #include <string>
+#include <fstream>
 #include <cstdlib>
 #include "audionode.h"
 #include "parser.h"
+#include "nodeserializer.h"
 
 void ControlConnection::get_data(bool blocking) {
 	char data[256];
@@ -136,7 +138,7 @@ void SocketController::tick() {
 					throw 0;
 				}
 				
-				else if (cmd == 's') {
+				else if (cmd == 'x') {
 					std::string lc_str = conn.read_line();
 					unsigned long lc;
 					try {
@@ -159,6 +161,19 @@ void SocketController::tick() {
 						conn.error("INVALID CODE");
 					} else {
 						conn.success();
+					}
+				}
+
+				else if (cmd == 'w') {
+					std::string dest = conn.read_line();
+					try {
+						std::ofstream df;
+						df.open(dest, std::ios::out | std::ios::trunc);
+						serialize(df, *nodes, *links);
+						df.close();
+						conn.success();
+					} catch (const std::ofstream::failure &err) {
+						conn.error("IO ERROR");
 					}
 				}
 				

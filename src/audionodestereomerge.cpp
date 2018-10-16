@@ -23,6 +23,10 @@ void AudioNodeStereoMerge::tick() {
 	}
 }
 
+void AudioNodeStereoMerge::serialize(std::ostream &dest) {
+	dest << "[2 Monos to Stereo]\n";
+}
+
 int AudioNodeStereoMerge::set_input(int id, AudioFrame* buf) {
 	if (id == 0) {
 		left = *buf;

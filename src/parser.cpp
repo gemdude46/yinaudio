@@ -5,6 +5,8 @@
 #include <vector>
 #include <unordered_map>
 #include <stdexcept>
+#include <stdlib.h>
+#include <time.h>
 #include "audionode.h"
 #include "nodelink.h"
 
@@ -115,6 +117,13 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 	
 	if (current_data.count("name")) {
 		new_node->name = current_data["name"];
+	} else {
+		char name[16];
+		for (int i = 0; i < 15; i++) {
+			name[i] = static_cast<char>(65 + rand() % 26);
+		}
+		new_node->name = std::string(name);
+		std::cerr << "Warning: unnamed node, calling it " << new_node->name << std::endl;
 	}
 
 	nodes.push_back(new_node);
@@ -123,6 +132,8 @@ int add_node(std::string &current_type, std::unordered_map<std::string,std::stri
 }
 
 int parse_code(std::string code, std::vector<AudioNode*> &nodes, std::vector<NodeLink> &links) {
+	srand(rand() ^ time(NULL));
+	
 	int err;
 	std::vector<PreNodeLink> prelinks;
 
@@ -163,11 +174,11 @@ int parse_code(std::string code, std::vector<AudioNode*> &nodes, std::vector<Nod
 	if (!current_type.empty() && (err = add_node(current_type, current_data, nodes))) return err;
 
 	
-	for (auto const &prelink: prelinks) {
+	for (const PreNodeLink &prelink: prelinks) {
 		AudioNode* src  = NULL;
 		AudioNode* dest = NULL;
 
-		for (auto const &node: nodes) {
+		for (AudioNode* node: nodes) {
 			if (node->name == prelink.src)
 				src = node;
 

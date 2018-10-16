@@ -21,6 +21,8 @@ public:
 
 	virtual void tick() = 0;
 
+	virtual void serialize(std::ostream &dest) = 0;
+
 	int set_input(int id, AudioFrame* buf);
 	int get_output(int id, AudioFrame** buf);
 
@@ -35,6 +37,8 @@ public:
 	AudioNodeStereoMerge() {}
 
 	void tick();
+
+	void serialize(std::ostream &dest);
 
 	int set_input(int id, AudioFrame* buf);
 	int get_output(int id, AudioFrame** buf);
@@ -54,6 +58,8 @@ public:
 	}
 
 	void tick();
+
+	void serialize(std::ostream &dest);
 
 	int get_output(int id, AudioFrame** buf);
 	int update_attribute(std::string key, std::string value);
@@ -83,6 +89,8 @@ public:
 
 	void tick();
 
+	void serialize(std::ostream &dest);
+
 	int get_output(int id, AudioFrame** buf);
 };
 
@@ -111,6 +119,8 @@ public:
 	}
 
 	void tick();
+
+	void serialize(std::ostream &dest);
 
 	int set_input(int id, AudioFrame* buf);
 };

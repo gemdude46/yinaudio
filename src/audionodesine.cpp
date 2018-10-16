@@ -19,7 +19,13 @@ void AudioNodeSine::tick() {
 	}
 }
 
+void AudioNodeSine::serialize(std::ostream &dest) {
+	dest << "[Sine Wave]\nfrequency=" << freq << "\namplitude=" << amp << '\n';
+}
+
 int AudioNodeSine::get_output(int id, AudioFrame** buf) {
+	std::cout << 5;
+	
 	if (id != 0) {
 		return E_INVALID_AUDIONODE_OUTPUT;
 	}
@@ -46,6 +52,8 @@ int AudioNodeSine::update_attribute(std::string key, std::string value) {
 			} else {
 				return E_INVALID_AUDIONODE_ATTRIBUTE_VALUE;
 			}
+		} catch (const std::invalid_argument &err) {
+			return E_INVALID_AUDIONODE_ATTRIBUTE_VALUE;
 		}
 	} else {
 		return E_INVALID_AUDIONODE_ATTRIBUTE_KEY;

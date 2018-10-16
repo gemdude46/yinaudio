@@ -128,8 +128,8 @@ int main(int argc, char** argv) {
 
 		for (auto const &link: links) {
 			AudioFrame* buf;
-			if (link.src->get_output(link.src_id, &buf)) {
-				std::cerr << "Unable to get output " << link.src_id << " of " << (link.src->name.empty() ? "UNNAMED" : link.src->name.c_str()) << std::endl;
+			if ((err = link.src->get_output(link.src_id, &buf))) {
+				std::cerr << "Unable to get output " << link.src_id << " of " << (link.src->name.empty() ? "UNNAMED" : link.src->name.c_str()) << ": Errno: " << err << std::endl;
 				return -1;
 			}
 			if (link.dest->set_input(link.dest_id, buf)) {

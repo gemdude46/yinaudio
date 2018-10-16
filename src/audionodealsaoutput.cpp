@@ -127,6 +127,10 @@ int AudioNodeALSAOutput::open_device(int rate, int channels) {
 	return 0;
 }
 
+void AudioNodeALSAOutput::serialize(std::ostream &dest) {
+	dest << "[ALSA Output Device]\ndevice=" << device << '\n';
+}
+
 int AudioNodeALSAOutput::set_input(int id, AudioFrame* buf) {
 	if (id != 0) {
 		return E_INVALID_AUDIONODE_INPUT;
