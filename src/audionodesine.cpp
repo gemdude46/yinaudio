@@ -24,8 +24,6 @@ void AudioNodeSine::serialize(std::ostream &dest) {
 }
 
 int AudioNodeSine::get_output(int id, AudioFrame** buf) {
-	std::cout << 5;
-	
 	if (id != 0) {
 		return E_INVALID_AUDIONODE_OUTPUT;
 	}
